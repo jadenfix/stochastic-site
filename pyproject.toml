@@ -53,3 +53,6 @@ ignore = ["E203", "E266", "E501", "W503"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+
+[tool.setuptools.packages.find]
+include = ["src", "src.*"]

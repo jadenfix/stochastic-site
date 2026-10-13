@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
@@ -289,9 +290,9 @@ def report(
         <h2>Metrics</h2>
         <pre>{json.dumps(metrics, indent=2)}</pre>
         <h2>Equity Curve</h2>
-        <img src="{equity_fig_path.as_posix()}" alt="Equity Curve" width="800" />
+        <img src="{os.path.relpath(equity_fig_path.resolve(), output.parent.resolve())}" alt="Equity Curve" width="800" />
         <h2>States Overlay</h2>
-        <img src="{states_fig_path.as_posix()}" alt="States" width="800" />
+        <img src="{os.path.relpath(states_fig_path.resolve(), output.parent.resolve())}" alt="States" width="800" />
     </body>
     </html>
     """
