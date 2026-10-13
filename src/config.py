@@ -42,7 +42,10 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Return cached settings instance."""
 
-    return Settings()
+    config = Settings()
+    for directory in (config.data_dir, config.cache_dir, config.models_dir, config.reports_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+    return config
 
 
 settings = get_settings()
