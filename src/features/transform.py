@@ -46,6 +46,7 @@ def compute_rsi(prices: pd.Series, period: int = 14) -> pd.Series:
     avg_loss = loss.ewm(alpha=1 / period, adjust=False).mean()
     rs = avg_gain / avg_loss.replace(0, np.nan)
     rsi = 100 - (100 / (1 + rs))
+    rsi = rsi.mask((avg_loss == 0) & (avg_gain > 0), 100.0)
     return rsi.fillna(50.0)
 
 
@@ -94,6 +95,12 @@ def build_feature_matrix(
 
     df = ohlcv.copy()
     df = df.sort_index()
+    if df.index.has_duplicates:
+        raise ValueError("OHLCV timestamps must be unique")
+    if not np.isfinite(df[[price_col, volume_col]].to_numpy(dtype=float)).all():
+        raise ValueError("Prices and volumes must be finite")
+    if (df[price_col] <= 0).any() or (df[volume_col] < 0).any():
+        raise ValueError("Prices must be positive and volumes non-negative")
 
     raw = pd.DataFrame(index=df.index)
     raw["log_return"] = compute_log_returns(df[price_col])

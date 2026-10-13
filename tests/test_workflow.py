@@ -30,8 +30,7 @@ def test_offline_fit_backtest_report(tmp_path, monkeypatch):
     metrics = json.loads((settings.data_dir / "backtests/latest_metrics.json").read_text())
     assert metrics
     report = settings.reports_dir / "report.html"
-    assert 'src="equity_curve.png"' in report.read_text()
-    assert 'src="states.png"' in report.read_text()
+    assert report.read_text().count('src="data:image/png;base64,') == 2
     assert (report.parent / "equity_curve.png").is_file()
     second_fit = runner.invoke(app, ["fit-hmm", "-n", "2"])
     assert isinstance(second_fit.exception, FileExistsError)

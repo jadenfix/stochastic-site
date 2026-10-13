@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Literal
 
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -33,19 +33,13 @@ class Settings(BaseSettings):
     )
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = Field(default="INFO")
 
-    class Config:
-        env_prefix = "HMM_"
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = SettingsConfigDict(env_prefix="HMM_", env_file=".env", env_file_encoding="utf-8")
 
 
 def get_settings() -> Settings:
     """Return cached settings instance."""
 
-    config = Settings()
-    for directory in (config.data_dir, config.cache_dir, config.models_dir, config.reports_dir):
-        directory.mkdir(parents=True, exist_ok=True)
-    return config
+    return Settings()
 
 
 settings = get_settings()
