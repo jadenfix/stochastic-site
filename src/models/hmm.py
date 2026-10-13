@@ -50,13 +50,13 @@ def select_hmm(features: pd.DataFrame, candidates: list[int], *,
 
 def save_hmm(result: HMMResult, *, force: bool = False) -> Path:
     path = settings.models_dir / "hmm.joblib"
-    if path.exists() and not force:
-        raise FileExistsError(f"Model already exists: {path}; pass --force to overwrite")
     path.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump({"model": result.model, "scaler": result.scaler,
+    # Exclusive creation prevents a concurrent fit overwriting an existing bundle.
+    with path.open("wb" if force else "xb") as stream:
+        joblib.dump({"model": result.model, "scaler": result.scaler,
                  "feature_columns": list(result.model.feature_names_in_)
                  if hasattr(result.model, "feature_names_in_") else list(result.scaler.get_feature_names_out()),
-                 "aic": result.aic, "bic": result.bic}, path)
+                 "aic": result.aic, "bic": result.bic}, stream)
     return path
 
 
@@ -68,4 +68,6 @@ def load_hmm_model(path: Path | None = None) -> dict:
     bundle = joblib.load(target)
     if not isinstance(bundle, dict) or not {"model", "scaler"}.issubset(bundle):
         raise ValueError("Model artifact is missing model or scaler")
+    if not isinstance(bundle["model"], GaussianHMM) or not isinstance(bundle["scaler"], StandardScaler):
+        raise ValueError("Model artifact must contain a GaussianHMM and StandardScaler")
     return bundle
