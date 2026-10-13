@@ -12,7 +12,7 @@ __pycache__/
 # Project data caches
 artifacts/
 data/cache/
-models/
+/models/
 reports/
 
 # Notebooks checkpoints
