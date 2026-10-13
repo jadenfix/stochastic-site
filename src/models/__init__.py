@@ -1,1 +1,1 @@
-"""Regime model implementations."""
+"""Persisted regime models."""

@@ -11,7 +11,7 @@ from typer.testing import CliRunner
 from src.cli import app
 from src.config import settings
 from src.features.transform import build_feature_matrix
-from src.models.hmm import fit_hmm_model, load_hmm_model, save_hmm, select_hmm
+from src.models.hmm import fit_hmm_model, load_hmm_model, save_hmm, select_hmm, filter_states
 
 
 def prices():
@@ -29,7 +29,7 @@ def test_model_round_trip_and_overwrite_guard(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "models_dir", tmp_path / "nested")
     path = save_hmm(fitted)
     restored = load_hmm_model(path)
-    assert np.array_equal(restored["model"].predict(features.features.values), fitted.states.values)
+    assert np.array_equal(filter_states(restored["model"], features.features)[0].values, fitted.states.values)
     with pytest.raises(FileExistsError):
         save_hmm(fitted)
     save_hmm(fitted, force=True)
@@ -71,4 +71,4 @@ def test_offline_cli_fit_backtest_report(tmp_path, monkeypatch):
     backtest = pd.read_parquet(settings.data_dir / "backtests" / "latest.parquet")
     assert np.isfinite(backtest["equity"]).all()
     for image in re.findall(r'<img src="([^"]+)"', report.read_text()):
-        assert (report.parent / image).is_file()
+        assert image.startswith("data:image/png;base64,")

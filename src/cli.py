@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
-import os
+import subprocess
+import sys
+import numpy as np
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
@@ -16,8 +18,9 @@ from src.data.binance import fetch_klines
 from src.data.deribit import fetch_candles, fetch_dvol
 from src.eval.metrics import compute_metrics
 from src.features.transform import build_feature_matrix
-from src.models.hmm import fit_hmm_model, load_hmm_model, save_hmm, select_hmm
+from src.models.hmm import filter_states, fit_hmm_model, load_hmm_model, save_hmm, select_hmm
 from src.viz.plots import plot_equity, plot_states
+from src.viz.report import write_report
 
 app = typer.Typer(help="Regime detection research CLI")
 
@@ -123,6 +126,7 @@ def fit_hmm(
         None, help="Override path for Binance training data"
     ),
     force: bool = typer.Option(False, help="Overwrite existing model"),
+    train_fraction: float = typer.Option(0.7, min=0.1, max=0.9, help="Chronological training fraction; the rest is held out"),
 ):
     """Fit a Gaussian HMM on engineered features."""
 
@@ -132,7 +136,9 @@ def fit_hmm(
 
     typer.echo(f"Loading data from {path}")
     df = pd.read_parquet(path)
-    feature_set = build_feature_matrix(df)
+    df.index = pd.to_datetime(df.index, utc=True)
+    training = df.sort_index().iloc[:int(len(df) * train_fraction)]
+    feature_set = build_feature_matrix(training)
 
     candidates = sorted(set(n_components))
     typer.echo(f"Training HMM for candidates: {candidates}")
@@ -179,7 +185,7 @@ def backtest(
     ),
     start: Optional[datetime] = typer.Option(None, help="Backtest start timestamp"),
     end: Optional[datetime] = typer.Option(None, help="Backtest end timestamp"),
-    fee_bps: float = typer.Option(2.0, help="Round-trip fee in basis points"),
+    fee_bps: float = typer.Option(2.0, min=0, help="Fee per unit of executed turnover, in basis points"),
 ):
     """Run backtests for a given strategy."""
 
@@ -189,19 +195,23 @@ def backtest(
 
     typer.echo(f"Loading price data from {price_path}")
     price_df = pd.read_parquet(price_path)
+    price_df.index = pd.to_datetime(price_df.index, utc=True)
     price_df = price_df.sort_index()
-    if start:
-        price_df = price_df[price_df.index >= pd.to_datetime(start, utc=True)]
-    if end:
-        price_df = price_df[price_df.index <= pd.to_datetime(end, utc=True)]
 
     bundle = load_hmm_model(model_path)
     model = bundle["model"]
     scaler = bundle["scaler"]
 
     feature_set = build_feature_matrix(price_df, scaler=scaler)
-    states_array = model.predict(feature_set.features.values)
-    states = pd.Series(states_array, index=feature_set.features.index, name="state")
+    states, _ = filter_states(model, feature_set.features)
+    evaluation_index = feature_set.features.index[feature_set.features.index > bundle["training_end"]]
+    if start:
+        evaluation_index = evaluation_index[evaluation_index >= pd.to_datetime(start, utc=True)]
+    if end:
+        evaluation_index = evaluation_index[evaluation_index <= pd.to_datetime(end, utc=True)]
+    if len(evaluation_index) < 2:
+        raise ValueError("At least two held-out rows after training_end are required")
+    states = states.reindex(evaluation_index)
 
     dvol_series = None
     target_dvol_path = dvol_path or _default_dvol_path("BTC", dvol_index, dvol_resolution)
@@ -210,8 +220,8 @@ def backtest(
         if not dvol_df.empty and "value" in dvol_df:
             dvol_series = dvol_df["value"]
 
-    price_series = price_df["close"].reindex(feature_set.features.index).ffill()
-    returns = feature_set.raw["log_return"]
+    price_series = price_df["close"].reindex(evaluation_index)
+    returns = feature_set.raw["log_return"].reindex(evaluation_index)
 
     result = run_strategy(
         strategy,
@@ -220,9 +230,24 @@ def backtest(
         states=states,
         fee_bps=fee_bps,
         dvol=dvol_series,
+        state_labels=bundle["state_labels"],
     )
 
-    metrics = compute_metrics(result.equity_curve, result.returns)
+    seconds_per_bar = evaluation_index.to_series().diff().dt.total_seconds().dropna().median()
+    periods_per_year = max(1, round(365 * 24 * 3600 / seconds_per_bar))
+    metrics = compute_metrics(result.equity_curve, result.returns, periods_per_year=periods_per_year)
+    provenance = {
+        "symbol": symbol, "synthetic": symbol == "DEMO",
+        "training_end": str(bundle["training_end"]),
+        "evaluation_start": str(evaluation_index[0]),
+        "evaluation_end": str(evaluation_index[-1]),
+        "evaluation_rows": len(evaluation_index), "state_count": model.n_components,
+        "inference": "causal forward filtering", "labels": "training prefix only",
+        "position_lag_bars": 1, "fee_bps_per_turnover": fee_bps,
+        "periods_per_year": periods_per_year,
+        "options_pnl": "not implemented; overlay is a diagnostic signal only",
+    }
+    (_latest_metrics_path().parent / "latest_provenance.json").write_text(json.dumps(provenance, indent=2))
     typer.echo(json.dumps(metrics, indent=2))
 
     backtest_dir = settings.data_dir / "backtests"
@@ -282,22 +307,31 @@ def report(
     plot_states(price_df["close"], states_df["state"], output=states_fig_path)
 
     output.parent.mkdir(parents=True, exist_ok=True)
-    html = f"""
-    <html>
-    <head><title>HMM Regime Report</title></head>
-    <body>
-        <h1>Regime Backtest Report</h1>
-        <h2>Metrics</h2>
-        <pre>{json.dumps(metrics, indent=2)}</pre>
-        <h2>Equity Curve</h2>
-        <img src="{os.path.relpath(equity_fig_path.resolve(), output.parent.resolve())}" alt="Equity Curve" width="800" />
-        <h2>States Overlay</h2>
-        <img src="{os.path.relpath(states_fig_path.resolve(), output.parent.resolve())}" alt="States" width="800" />
-    </body>
-    </html>
-    """
-    output.write_text(html)
+    provenance_path = settings.data_dir / "backtests/latest_provenance.json"
+    provenance = json.loads(provenance_path.read_text()) if provenance_path.exists() else {}
+    write_report(output, metrics, [("Strategy and buy-and-hold", equity_fig_path),
+                                  ("Price and inferred regimes", states_fig_path)], provenance)
     typer.echo(f"Report written to {output}")
+
+
+@app.command()
+def demo():
+    """Run deterministic generated prices through training, holdout backtest, and report."""
+    index = pd.date_range("2026-01-01", periods=720, freq="h", tz="UTC")
+    rng = np.random.default_rng(2026)
+    regime = np.repeat([0, 1, 2] * 4, 60)
+    log_returns = np.array([0.001, -0.001, 0.0])[regime] + rng.normal(size=len(index)) * np.array([.002, .004, .010])[regime]
+    close = 30000 * np.exp(np.cumsum(log_returns))
+    frame = pd.DataFrame({"open": close, "high": close * 1.002, "low": close * .998,
+                          "close": close, "volume": rng.uniform(100, 1000, len(index))}, index=index)
+    path = _default_binance_path("DEMO", "1h")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    frame.to_parquet(path)
+    typer.echo("SYNTHETIC OFFLINE DEMO: generated data; no exchange requests or orders.")
+    for command in (["fit-hmm", "--symbol", "DEMO", "--force"],
+                    ["backtest", "--symbol", "DEMO"],
+                    ["report", "--symbol", "DEMO", "--output", str(settings.reports_dir / "demo.html")]):
+        subprocess.run([sys.executable, "-m", "src.cli", *command], check=True)
 
 
 if __name__ == "__main__":

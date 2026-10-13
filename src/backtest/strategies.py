@@ -32,12 +32,14 @@ def _classify_states(states: pd.Series, returns: pd.Series) -> Dict[int, str]:
 
     bullish = stats["mean_return"].idxmax()
     bearish = stats["mean_return"].idxmin()
-    volatile = stats["volatility"].idxmax()
-
     labels: Dict[int, str] = {int(idx): "neutral" for idx in stats.index}
+    if bullish == bearish:
+        return labels
     labels[int(bullish)] = "calm_up"
     labels[int(bearish)] = "bearish"
-    labels[int(volatile)] = "high_vol"
+    remaining = stats.drop(index=[bullish, bearish])
+    if not remaining.empty:
+        labels[int(remaining["volatility"].idxmax())] = "high_vol"
     return labels
 
 
@@ -47,9 +49,13 @@ def _apply_weights(
     fee_bps: float,
 ) -> tuple[pd.Series, pd.Series]:
     aligned_returns = returns.reindex(weights.index).fillna(0.0)
-    shifted_weights = weights.shift().fillna(weights.iloc[0])
-    gross = shifted_weights * aligned_returns
-    turnover = weights.diff().abs().fillna(0.0)
+    if weights.empty:
+        raise ValueError("Cannot backtest empty weights")
+    if not np.isfinite(fee_bps) or fee_bps < 0:
+        raise ValueError("fee_bps must be finite and non-negative")
+    shifted_weights = weights.shift().fillna(0.0)
+    gross = shifted_weights * np.expm1(aligned_returns)
+    turnover = shifted_weights.diff().abs().fillna(shifted_weights.abs())
     fees = turnover * (fee_bps / 10_000)
     strategy_returns = gross - fees
     equity_curve = (1 + strategy_returns).cumprod()
@@ -63,8 +69,9 @@ def _spot_regime_strategy(
     returns: pd.Series,
     states: pd.Series,
     fee_bps: float,
+    state_labels: Optional[Dict[int, str]] = None,
 ) -> StrategyResult:
-    labels = _classify_states(states, returns)
+    labels = state_labels if state_labels is not None else _classify_states(states, returns)
     weight_map = {state: 0.5 for state in labels}
     calm_states = [state for state, label in labels.items() if label == "calm_up"]
     high_vol_states = [state for state, label in labels.items() if label == "high_vol"]
@@ -75,15 +82,16 @@ def _spot_regime_strategy(
     for state in set(high_vol_states + bearish_states):
         weight_map[state] = 0.0
 
-    weights = states.map(weight_map).astype(float)
+    weights = states.map(weight_map).fillna(0.5).astype(float)
     strategy_returns, equity_curve = _apply_weights(returns, weights, fee_bps)
 
-    benchmark = (1 + returns).cumprod()
+    benchmark = np.exp(returns.cumsum())
     benchmark.name = "buy_hold"
 
     metadata = {
         "state_labels": labels,
         "fee_bps": fee_bps,
+        "evaluation": "training_labels" if state_labels is not None else "retrospective_exploration",
     }
 
     return StrategyResult(
@@ -103,7 +111,7 @@ def _options_overlay_stub(
 ) -> pd.Series:
     if dvol is None or dvol.empty:
         return pd.Series(dtype=float)
-    dvol = dvol.sort_index().reindex(states.index).interpolate().bfill()
+    dvol = dvol.sort_index().reindex(states.index, method="ffill")
     dvol_change = dvol.diff().fillna(0.0)
     overlay = pd.Series(0.0, index=states.index, name="options_overlay")
     for state, label in labels.items():
@@ -120,6 +128,7 @@ def run_strategy(
     states: pd.Series,
     fee_bps: float = 2.0,
     dvol: Optional[pd.Series] = None,
+    state_labels: Optional[Dict[int, str]] = None,
 ) -> StrategyResult:
     """Run a named strategy and return performance data."""
 
@@ -128,7 +137,7 @@ def run_strategy(
     states = states.reindex(price.index).ffill().dropna()
 
     if name == "spot_regime":
-        base_result = _spot_regime_strategy(price, returns, states, fee_bps)
+        base_result = _spot_regime_strategy(price, returns, states, fee_bps, state_labels)
         overlay = _options_overlay_stub(dvol, states, base_result.metadata["state_labels"])
         if not overlay.empty:
             base_result.metadata["options_overlay_signal"] = overlay

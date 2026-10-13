@@ -34,15 +34,16 @@ def compute_metrics(
     vol = excess_returns.std(ddof=0)
     sharpe = (np.sqrt(periods_per_year) * excess_returns.mean() / vol) if vol > 0 else float("nan")
 
-    rolling_max = equity.cummax()
+    rolling_max = equity.cummax().clip(lower=1.0)
     drawdowns = equity / rolling_max - 1
     max_drawdown = drawdowns.min()
 
     hit_rate = (rets > 0).sum() / total_periods if total_periods > 0 else float("nan")
 
-    return {
+    metrics = {
         "CAGR": float(cagr),
         "Sharpe": float(sharpe),
         "MaxDrawdown": float(max_drawdown),
         "HitRate": float(hit_rate),
     }
+    return {key: value if np.isfinite(value) else None for key, value in metrics.items()}
