@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import numpy as np
@@ -51,6 +52,26 @@ def _latest_metrics_path() -> Path:
     backtest_dir = settings.data_dir / "backtests"
     backtest_dir.mkdir(parents=True, exist_ok=True)
     return backtest_dir / "latest_metrics.json"
+
+
+def _ensure_report_outputs_do_not_alias_inputs(
+    inputs: list[Path], outputs: list[Path]
+) -> None:
+    """Refuse report targets that resolve to an input artifact."""
+    for output in outputs:
+        for input_path in inputs:
+            same_target = output.resolve(strict=False) == input_path.resolve(
+                strict=False
+            )
+            same_inode = (
+                output.exists()
+                and input_path.exists()
+                and os.path.samefile(output, input_path)
+            )
+            if same_target or same_inode:
+                raise ValueError(
+                    f"Report output must not overwrite an input artifact: {output}"
+                )
 
 
 @app.command()
@@ -299,15 +320,19 @@ def report(
 
     metrics_path = _latest_metrics_path()
     metrics = json.loads(metrics_path.read_text()) if metrics_path.exists() else {}
+    provenance_path = settings.data_dir / "backtests/latest_provenance.json"
 
     equity_fig_path = settings.reports_dir / "equity_curve.png"
     states_fig_path = settings.reports_dir / "states.png"
+    _ensure_report_outputs_do_not_alias_inputs(
+        [bt_path, st_path, px_path, metrics_path, provenance_path],
+        [output, equity_fig_path, states_fig_path],
+    )
 
     plot_equity(backtest_df["equity"], backtest_df["benchmark"], output=equity_fig_path)
     plot_states(price_df["close"], states_df["state"], output=states_fig_path)
 
     output.parent.mkdir(parents=True, exist_ok=True)
-    provenance_path = settings.data_dir / "backtests/latest_provenance.json"
     provenance = json.loads(provenance_path.read_text()) if provenance_path.exists() else {}
     write_report(output, metrics, [("Strategy and buy-and-hold", equity_fig_path),
                                   ("Price and inferred regimes", states_fig_path)], provenance)

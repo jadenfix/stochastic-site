@@ -2,6 +2,10 @@
 
 Regime-aware volatility and options overlay research using only free crypto market data. The project fetches Binance spot candles and Deribit implied volatility series, engineers features, and compares Hidden Markov Model regimes against classical volatility baselines.
 
+![Seeded offline regime-research workflow](docs/demo/regime-research-demo.gif)
+
+[Watch the MP4](docs/demo/regime-research-demo.mp4) · Seeded fictional prices, provider-free execution, and no orders. The displayed metrics only describe this generated fixture; they are not market-performance evidence.
+
 ## Quickstart
 
 ```bash
@@ -55,3 +59,11 @@ python -m pytest tests -q
 ```
 
 Regression checks cover model persistence, overwrite protection, causal prefix invariance, position timing and fees, log-return compounding, and the public CLI's complete offline workflow. Live market-source tests use controlled response fixtures; this does not establish current exchange availability.
+
+Report generation also refuses output paths that alias its input artifacts through a direct path, symlink, or hard link. This prevents a successful report command from replacing source parquet data with HTML or chart bytes.
+
+The checked-in demo is source-pinned and fully decoded in CI:
+
+```sh
+python scripts/verify_demo.py
+```

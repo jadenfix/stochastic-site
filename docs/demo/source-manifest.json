@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "captured_source_commit": "0f4b8dc8ae02c4742f820bb4b3633db39f1d8301",
+  "captured_source_tree": "5aa5d61d71063ef1fac5ebc7fc76d9ec64bca251",
+  "runtime_input_blobs": {
+    "pyproject.toml": "5f2adce7762ecd2427c344c3b542b6dbacdae51c",
+    "scripts/capture_demo.py": "3fb8cb132da8efb521d52c3c059448e6d8f06cd0",
+    "scripts/verify_demo.py": "615bfa90c3bb33ec01dd4cac7844d94593b8ae19",
+    "src/__init__.py": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "src/backtest/__init__.py": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "src/backtest/strategies.py": "10e783a098be2fdb70312c6a4748806f212e1cf4",
+    "src/cli.py": "f5640051a35e10d49f7e3bff84c4f8eee413842d",
+    "src/config.py": "cf20eb4ecc9556c72f0581fb12e2b22a36157523",
+    "src/data/__init__.py": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "src/data/binance.py": "b884691fbc2c319bbf83b4b7f73e564264a51627",
+    "src/data/deribit.py": "f9d0c3944edcf1cec1d862a62df9bbd6c6c77a62",
+    "src/eval/__init__.py": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "src/eval/metrics.py": "ee61407f4613c55754705d17ff04f4ed61c3ecbd",
+    "src/features/__init__.py": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "src/features/transform.py": "e5a17b0a94441e379e46cb7f993c6318c83fd64e",
+    "src/models/__init__.py": "c756d3a9ba42b90b6f60f141b4419d6e4ba2df90",
+    "src/models/hmm.py": "b8f3a4508d159252cf1b7c9ce84d5aa6ee1a59bd",
+    "src/viz/__init__.py": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "src/viz/plots.py": "82b4551c9f4ab234abc00d358a37b7282a8378b0",
+    "src/viz/report.py": "afd6854662a33b17b9b15532829f9046e2237971"
+  }
+}

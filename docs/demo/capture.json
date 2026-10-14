@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "scope": "Seeded fictional hourly prices executed entirely offline; no exchange/provider request, order, option P&L, live result, or market-performance claim.",
+  "base_commit": "9e8928d03fce03d2265bcd664a5fae5f95fff384",
+  "captured_source_commit": "0f4b8dc8ae02c4742f820bb4b3633db39f1d8301",
+  "captured_source_tree": "5aa5d61d71063ef1fac5ebc7fc76d9ec64bca251",
+  "source_manifest_sha256": "98b0e944e2e8c3463c61de103d1b5889936d206dc6123029559cf41bfdfacfaf",
+  "capture_command": ".venv/bin/python scripts/capture_demo.py",
+  "verification_command": ".venv/bin/python scripts/verify_demo.py",
+  "baseline_reproduction": {
+    "command": "python -m src.cli report --symbol DEMO --output <artifacts>/binance_DEMO_1h.parquet",
+    "exit_code": 0,
+    "source_sha256_before": "0796f3ef1ed985cc8c665e90b0e24b907f11c9776c38235c652e05664a7fa826",
+    "source_sha256_after": "79e7e88beefe8b0d8960bf3b7a573ee1ee78e3a53fa2ecad574195fa2989b27f",
+    "result": "price parquet replaced by HTML"
+  },
+  "repaired_guard": {
+    "exit_code": 1,
+    "source_sha256_before": "0796f3ef1ed985cc8c665e90b0e24b907f11c9776c38235c652e05664a7fa826",
+    "source_sha256_after": "0796f3ef1ed985cc8c665e90b0e24b907f11c9776c38235c652e05664a7fa826",
+    "boundaries": [
+      "direct path",
+      "symlink alias",
+      "hard-link alias"
+    ],
+    "protected_inputs": [
+      "backtest parquet",
+      "states parquet",
+      "price parquet",
+      "metrics JSON",
+      "provenance JSON"
+    ]
+  },
+  "fixture_result": {
+    "observations": 720,
+    "train_fraction": 0.7,
+    "evaluation_rows": 217,
+    "state_count": 3,
+    "inference": "causal forward filtering",
+    "labels": "training prefix only",
+    "position_lag_bars": 1,
+    "fee_bps_per_turnover": 2,
+    "options_pnl": "not implemented; overlay is diagnostic only",
+    "metrics": {
+      "CAGR": 615.956393213112,
+      "Sharpe": 10.756021857807713,
+      "MaxDrawdown": -0.04685961359219404,
+      "HitRate": 0.2857142857142857
+    },
+    "warning": "Metrics describe only the seeded generated fixture and are not market-performance evidence."
+  },
+  "local_gates": {
+    "tests": "20 passed",
+    "black_capture_scripts": "passed",
+    "diff_check": "passed",
+    "media_full_decode": "passed for all 3 artifacts"
+  },
+  "media": {
+    "regime-research-demo.gif": {
+      "mime_type": "image/gif",
+      "bytes": 1261445,
+      "sha256": "5cd1ec4a06ad89f309a548fb8074c4a95507dfd29d20bdacc055609f0827f297",
+      "codec_name": "gif",
+      "width": 800,
+      "height": 450,
+      "duration": "10.000000",
+      "nb_read_frames": "120"
+    },
+    "regime-research-demo.mp4": {
+      "mime_type": "video/mp4",
+      "bytes": 387191,
+      "sha256": "473a25ce097e610ecc1793a1960419a45908378814f7a837049105b7fc91ec97",
+      "codec_name": "h264",
+      "width": 1280,
+      "height": 720,
+      "duration": "10.000000",
+      "nb_read_frames": "240"
+    },
+    "regime-research-demo-poster.png": {
+      "mime_type": "image/png",
+      "bytes": 80377,
+      "sha256": "697da100279567cc4a356e7fb96ae19a445f314b6de9747373036d50629aab61",
+      "codec_name": "png",
+      "width": 1280,
+      "height": 720,
+      "nb_read_frames": "1"
+    }
+  }
+}
